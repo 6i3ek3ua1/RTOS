@@ -252,10 +252,8 @@ class Scheduler:
         """Генерирует графики и выводит статистику после выполнения задач."""
         core_labels = []  # Метки для ядер
         task_counts_per_core = []  # Количество задач на каждом ядре
-
         processor_labels = []  # Метки для процессоров
         task_counts_per_processor = []  # Количество задач на каждом процессоре
-
         # Собираем данные о задачах, выполненных ядрами и процессорами
         for processor in self.processors:
             total_tasks_processor = 0  # Общее количество задач для процессора
@@ -265,20 +263,32 @@ class Scheduler:
                 total_tasks_processor += core.completed_tasks
             processor_labels.append(f"Processor {processor.processor_id}")
             task_counts_per_processor.append(total_tasks_processor)
-
         # Вычисление статистики для процессоров
         processor_mean = sum(task_counts_per_processor) / len(task_counts_per_processor)
         processor_variance = sum((x - processor_mean) ** 2 for x in task_counts_per_processor) / len(
             task_counts_per_processor)
         processor_std_dev = processor_variance ** 0.5
         processor_variation_coeff = processor_std_dev / processor_mean if processor_mean != 0 else 0
-
         # Вывод статистики
         print("Processor Statistics:")
         print(f"  Среднее значение выполненных задач: {processor_mean:.2f}")
         print(f"  Среднее квадратичное отклонение: {processor_variance:.2f}")
         print(f"  Дисперсия: {processor_std_dev:.2f}")
         print(f"  Коэффициент вариации: {processor_variation_coeff:.2%}")
+        # Проверка равномерности распределения задач с помощью критерия хи-квадрат
+        all_tasks_count = self.memory_map.count_tasks
+        expected_tasks_per_processor = all_tasks_count / 8  # Ожидаемое распределение
+        observed_counts = task_counts_per_processor
+        expected_counts = [expected_tasks_per_processor] * len(self.processors)
+        chi_square_statistic, p_value = stats.chisquare(observed_counts, expected_counts)  # Вычисление статистики хи-квадрат
+
+        # Вывод результатов
+        print(f"Критерий хи-квадрат: {chi_square_statistic:.2f}")
+        print(f"p-значение: {p_value:.4f}")
+        if p_value < 0.05:
+            print("Отвергаем нулевую гипотезу: задачи распределены неравномерно между процессорами.")
+        else:
+            print("Не отвергаем нулевую гипотезу: задачи распределены равномерно между процессорами.")
 
         # Построение графика для ядер
         plt.figure(figsize=(10, 6))
@@ -317,22 +327,6 @@ class Scheduler:
         plt.tight_layout()
         plt.savefig("frame_utilisation_plot.png")  # Сохранение графика
         print(f"Средняя заполненность кадров: {avg_occupancy}%")
-
-        # Проверка равномерности распределения задач с помощью критерия хи-квадрат
-        all_tasks_count = self.memory_map.count_tasks
-        expected_tasks_per_processor = all_tasks_count / 8  # Ожидаемое распределение
-        observed_counts = task_counts_per_processor
-        expected_counts = [expected_tasks_per_processor] * len(self.processors)
-
-        chi_square_statistic, p_value = stats.chisquare(observed_counts, expected_counts) # Вычисление статистики хи-квадрат
-
-        # Вывод результатов
-        print(f"Критерий хи-квадрат: {chi_square_statistic:.2f}")
-        print(f"p-значение: {p_value:.4f}")
-        if p_value < 0.05:
-            print("Отвергаем нулевую гипотезу: задачи распределены неравномерно между процессорами.")
-        else:
-            print("Не отвергаем нулевую гипотезу: задачи распределены равномерно между процессорами.")
 
 
 # Основной блок программы, где происходит создание объектов и запуск планировщика
